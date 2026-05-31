@@ -1,0 +1,89 @@
+# Axolotl Training Config for Deep Eye Hacker
+# Fine-tune Qwen2.5-Coder-7B for penetration testing
+#
+# Usage:
+#   pip install axolotl
+#   accelerate launch -m axolotl.cli.train scripts/training/train_axolotl.yml
+#
+# Google Colab recommended (T4 GPU free):
+#   https://colab.research.google.com/
+
+base_model: Qwen/Qwen2.5-Coder-7B-Instruct
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+
+# Quantization (QLoRA - works on 8GB+ VRAM)
+load_in_8bit: false
+load_in_4bit: true
+strict: false
+
+# Dataset
+datasets:
+  - path: data/pentest_dataset.jsonl
+    type: sharegpt
+    conversation: |
+      - from: human
+        to: user
+      - from: gpt
+        to: assistant
+    field_instruction: instruction
+    field_output: output
+
+dataset_prepared_path: data/axolotl_prepared
+val_set_size: 0.05
+output_dir: models/deep-eye-axolotl
+
+# Sequence length
+sequence_len: 2048
+sample_packing: true
+
+# LoRA configuration
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.0
+lora_target_linear: true
+lora_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# Training hyperparameters
+num_epochs: 3
+micro_batch_size: 2
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+learning_rate: 0.0002
+lr_scheduler: cosine
+warmup_steps: 20
+optimizer: adamw_bnb_8bit
+
+# Precision
+bf16: auto
+fp16: false
+tf32: true
+
+# Saving
+save_steps: 50
+save_total_limit: 2
+eval_steps: 50
+logging_steps: 10
+
+# Evals
+eval_table_size: 5
+eval_max_new_tokens: 128
+
+# DeepSpeed (optional, for multi-GPU)
+deepspeed: null
+
+# Special tokens
+special_tokens:
+  pad_token: "<|im_end|>"
+
+# After training, export to GGUF:
+# python -m axolotl.cli.merge_lora train_axolotl.yml
+# python -m llama_cpp.convert_hf_to_gguf models/deep-eye-axolotl-merged \
+#   --outfile models/deep-eye-axolotl.gguf --outtype q8_0
